@@ -1,6 +1,6 @@
 #############################################################################
 ##  
-##  PackageInfo.g for the package `InduceReduce'              Jonsthan Gruber
+##  PackageInfo.g for the package `InduceReduce'              Jonathan Gruber
 ##                                                            
 ##  This file contains meta-information on the package. It is used by
 ##  the package loading mechanism and the upgrade mechanism for the

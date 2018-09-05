@@ -36,8 +36,7 @@ Persons := [
 #IssueTrackerURL := "TODO",
 #SupportEmail := "TODO",
 
-PackageWWWHome :=
-  Concatenation( "https://jonathan-144.github.io/", LowercaseString( ~.PackageName ) ),
+PackageWWWHome :="https://github.com/jonathan-144/InduceReduce",
 
 PackageInfoURL := Concatenation( ~.PackageWWWHome, "/PackageInfo.g" ),
 README_URL     := Concatenation( ~.PackageWWWHome, "/README.md" ),

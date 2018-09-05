@@ -80,7 +80,7 @@ AvailabilityTest := function()
 
 TestFile := "tst/testall.g",
 
-#Keywords := [ "TODO" ],
+Keywords := [ "character table", "elementary subgroups", "induced characters" ],
 
 ));
 

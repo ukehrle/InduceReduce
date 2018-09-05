@@ -37,7 +37,7 @@ Persons := [
 #SupportEmail := "TODO",
 
 PackageWWWHome :=
-  Concatenation( "https://gap-packages.github.io/", LowercaseString( ~.PackageName ) ),
+  Concatenation( "https://jonathan-144.github.io/", LowercaseString( ~.PackageName ) ),
 
 PackageInfoURL := Concatenation( ~.PackageWWWHome, "/PackageInfo.g" ),
 README_URL     := Concatenation( ~.PackageWWWHome, "/README.md" ),

@@ -35,8 +35,8 @@ restrictions on the type of the operating system.
 
 There are two ways of installing a GAP package. If you have permission to add
 files to the installation of GAP on your system you may install InduceReduce into
-the `pkg' subdirectory of the GAP installation tree. Otherwise you may install
-InduceReduce in a private `pkg' directory (for details see `76.1 Installing a GAP Package' and `9.2 GAP Root Directories' in the reference manual).
+the 'pkg' subdirectory of the GAP installation tree. Otherwise you may install
+InduceReduce in a private 'pkg' directory (for details see '76.1 Installing a GAP Package' and '9.2 GAP Root Directories' in the reference manual).
 
 Once you have installed the package, you can load it in a GAP session using the following command:
 

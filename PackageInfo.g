@@ -1,11 +1,12 @@
-#
-# pkgname: pkg
-#
-# This file contains package meta data. For additional information on
-# the meaning and correct usage of these fields, please consult the
-# manual of the "Example" package as well as the comments in its
-# PackageInfo.g file.
-#
+#############################################################################
+##  
+##  PackageInfo.g for the package `InduceReduce'              Jonsthan Gruber
+##                                                            
+##  This file contains meta-information on the package. It is used by
+##  the package loading mechanism and the upgrade mechanism for the
+##  redistribution of the package via the GAP website.
+##
+
 SetPackageInfo( rec(
 
 PackageName := "InduceReduce",

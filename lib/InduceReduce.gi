@@ -49,7 +49,7 @@ InstallValue( IndRed , rec(
 ##
 #F IndRed.Init( <G> )
 ##
-## Initialization of the elgorithm returns a record which contains all
+## Initialization of the algorithm, returns a record which contains all
 ## relevant data concerning the group G
 ##
 	Init:=function(G)

@@ -7,16 +7,35 @@
 #
 #############################################################################
 ##
-## Initialize global variables
+## Initialize the options record with the default values.
+## The meaning of the components is as follows:
 ##
-MakeReadWriteGlobal("DOCYCLICFIRST");
-MakeReadWriteGlobal("DOCYCLICLAST");
-MakeReadWriteGlobal("LLLOFFSET");
-MakeReadWriteGlobal("DELTA");
-DOCYCLICFIRST:=false;
-DOCYCLICLAST:=false;
-LLLOFFSET:=0;
-DELTA:=1.0;
+## DoCyclicFirst
+##
+## a boolean variable that tells the program to induce the charaters of all
+## cyclic subgroups before proceeding to the non-cyclic elementary subgroups
+##
+## DoCyclicLast
+##
+## a boolean variable that tells the program to induce the charaters of all
+## cyclic subgroups before proceeding to the non-cyclic elementary subgroups
+##
+## LLLOffSet
+##
+## an integer variable that tells the program to postpone the first LLL
+## reduction until the characters of the LLLOFFSET-th elementary subgroup
+## have been induced.
+##
+## DELTA
+##
+## a rational that specifies the parameter delta for the LLL reduction
+##
+CTUngerDefaultOptions := rec(
+	DoCyclicFirst := false,
+	DoCyclicLast := false,
+	LLLOffset := 0,
+	Delta := 3/4
+);
 
 
 #############################################################################
@@ -224,27 +243,32 @@ end );
 ## of the record GR.
 ##
 InstallGlobalFunction( IndRedFindElementary,
-function(GR)
+function(GR,Opt)
 local Elementary;
 	Elementary:=rec();
 	while true do
 		GR.IndexCyc:=GR.IndexCyc+1; # run over the conjugacy classes
 		if GR.IndexCyc>GR.k then GR.IndexCyc:=1; fi;
-		if not IsEmpty(GR.CentralizerPrimes[GR.IndexCyc]) then # search for a prime that has not been used yet
+		if not IsEmpty(GR.CentralizerPrimes[GR.IndexCyc]) then
+			# search for a prime that has not been used yet
 			Elementary.isCyclic:=false;
 			Elementary.z:=GR.classreps[GR.IndexCyc];
-			Elementary.p:=Random(GR.CentralizerPrimes[GR.IndexCyc]); # choose a random prime for that conjugacy class
+			Elementary.p:=Random(GR.CentralizerPrimes[GR.IndexCyc]);
+				# choose a random prime for that conjugacy class
 			RemoveSet(GR.CentralizerPrimes[GR.IndexCyc] , Elementary.p);
 			GR.NumberOfPrimes:=GR.NumberOfPrimes-1;
-			if not IsBound(GR.centralizers[GR.IndexCyc]) then # compute the centralizer, if not done already
+			if not IsBound(GR.centralizers[GR.IndexCyc]) then
+				# compute the centralizer, if not done already
 				GR.centralizers[GR.IndexCyc]:=Centralizer(GR.G,Elementary.z);
 			fi;
 			Elementary.P:=SylowSubgroup(GR.centralizers[GR.IndexCyc],Elementary.p);
 			GR.Elementary:=Elementary;
 			break;
-		elif GR.InduceCyclic[GR.IndexCyc] and (not DOCYCLICLAST or GR.NumberOfPrimes<=0) then
+		elif GR.InduceCyclic[GR.IndexCyc] and
+			(not Opt.DoCyclicLast or GR.NumberOfPrimes<=0) then
 			# if there are no primes left for this class, induce from cyclic group
-			# if DOCYCLICLAST=true: only induce from cyclic groups when all primes have been used
+			# if Opt.DoCyclicLast=true: only induce from cyclic groups
+			# when all primes have been used
 			Elementary.isCyclic:=true;
 			Elementary.z:=GR.classreps[GR.IndexCyc];
 			GR.InduceCyclic[GR.IndexCyc]:=false;
@@ -404,14 +428,14 @@ end );
 # lattice reduction
 #
 InstallGlobalFunction( IndRedReduce,
-function(GR,RedTR)
+function(GR,RedTR,Opt)
 local mat,temp,ind,I,i;
 	RedTR.redsparse(GR); #reduce new characters by all irreducibles
 	RedTR.GramMatrixGR(GR); # update the gram matrix
-	if LLLOFFSET>0 then
+	if Opt.LLLOffset>0 then
 		GR.m:=Size(GR.Gram);
 	else
-		temp:=LLLReducedGramMat(GR.Gram,DELTA); # LLL reduction on gram matrix
+		temp:=LLLReducedGramMat(GR.Gram,Opt.Delta); # LLL reduction on gram matrix
 		GR.Gram:=temp.remainder;
 		GR.B:=temp.transformation*GR.B;
 		temp:=[];
@@ -460,19 +484,19 @@ end );
 ## them in the component GR.Ir of GR, returns GR.Ir
 ##
 InstallGlobalFunction( InduceReduce,
-function(GR)
+function(GR,Opt)
 local TR, RedTR, H, ccsizesH, temp, it;
 
 	TR:=IndRedGroupTools(); # get group tools and reduce tools
 	RedTR:=IndRedReduceTools();
 
-	if DOCYCLICFIRST = true then # if option DOCYCLICFIRST is set,
+	if Opt.DoCyclicFirst = true then # if option Opt.DoCyclicFirst is set,
 		# induce from all cyclic groups first and reduce
 
 		Info(InfoCTUnger, 2, "Induce: from cyclic subgroups");
 
 		IndRedInduceCyc(GR);
-		IndRedReduce(GR,RedTR);
+		IndRedReduce(GR,RedTR,Opt);
 		GR.InduceCyclic:=ListWithIdenticalEntries(GR.k,false);
 		GR.NumberOfCyclic:=0;
 	fi;
@@ -485,9 +509,10 @@ local TR, RedTR, H, ccsizesH, temp, it;
 	while Size(GR.Ir)<GR.k and not (GR.NumberOfPrimes=0 and GR.NumberOfCyclic=0) do
 		# if number of irr. characters=number of conjugacy classes, all irr. characters have been found.
 	
-		LLLOFFSET:=LLLOFFSET-1; # LLLOFFSET can be manually set to postpone the first lattice reduction
+		Opt.LLLOffset:=Opt.LLLOffset-1;
+		# Opt.LLLOffset postpones the first LLL lattice reduction
 	
-		IndRedFindElementary(GR); # find elementary subgroup
+		IndRedFindElementary(GR,Opt); # find elementary subgroup
 	
 		IndRedInitElementary(GR,TR); # determine information needed about elementary subgroup
 	
@@ -497,17 +522,16 @@ local TR, RedTR, H, ccsizesH, temp, it;
 
 		IndRedInduce(GR); # append induced characters to GR.B
 	
-		IndRedReduce(GR,RedTR); # reduce GR.B by GR.Ir and do lattice reduction
+		IndRedReduce(GR,RedTR,Opt); # reduce GR.B by GR.Ir and do lattice reduction
 	od;
 
 	if Size(GR.Ir)>=GR.k then
 		return GR.Ir;
 	else
-		temp:=DELTA; # if there are still characters missing, do on last LLL reduction with DELTA:=1
-		DELTA:=1.0;
-		LLLOFFSET:=0;
-		IndRedReduce(GR,RedTR);
-		DELTA:=temp;
+		Opt.Delta:=1; 
+		# if there are still characters missing, do on last LLL reduction with Opt.Delta:=1
+		Opt.LLLOffset:=0;
+		IndRedReduce(GR,RedTR,Opt);
 		return GR.Ir;
 	fi;
 
@@ -546,12 +570,29 @@ end );
 ## Computes the character table of a finite group using Unger's algorithm
 ##
 InstallGlobalFunction( CharacterTableUnger,
-function(G)
-local GR, T;
+function(G, Options...)
+local GR, Opt, T;
 
 	GR:=IndRedInit(G);
+	
+	Opt:=ShallowCopy(CTUngerDefaultOptions);
+	if Length(Options)>0 and IsRecord(Options[1]) then
+		if IsBound(Options[1].DoCyclicFirst) and IsBool(Options[1].DoCyclicFirst) then
+			Opt.DoCyclicFirst:=Options[1].DoCyclicFirst;
+		fi;
+		if IsBound(Options[1].DoCyclicLast) and IsBool(Options[1].DoCyclicLast) then
+			Opt.DoCyclicLast:=Options[1].DoCyclicLast;
+		fi;
+		if IsBound(Options[1].LLLOffset) and IsInt(Options[1].LLLOffset) then
+			Opt.LLLOffset:=Options[1].LLLOffset;
+		fi;
+		if IsBound(Options[1].Delta) and IsRat(Options[1].Delta) 
+			and 1/4<Options[1].Delta and Options[1].Delta<=1 then
+			Opt.Delta:=Options[1].Delta;
+		fi;
+	fi;
 
-	InduceReduce(GR); # do the induce-reduce algorithm
+	InduceReduce(GR,Opt); # do the induce-reduce algorithm
 
 	IndRedtinI(GR);
 	
@@ -570,4 +611,3 @@ local GR, T;
 	ConvertToCharacterTableNC(T);
 	return T;
 end );
-

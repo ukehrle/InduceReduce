@@ -23,7 +23,7 @@
 ## LLLOffSet
 ##
 ## an integer variable that tells the program to postpone the first LLL
-## reduction until the characters of the LLLOFFSET-th elementary subgroup
+## reduction until the characters of the LLLOffSet-th elementary subgroup
 ## have been induced.
 ##
 ## DELTA

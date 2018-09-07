@@ -20,10 +20,10 @@
 ## a boolean variable that tells the program to induce the charaters of all
 ## cyclic subgroups before proceeding to the non-cyclic elementary subgroups
 ##
-## LLLOffSet
+## LLLOffset
 ##
 ## an integer variable that tells the program to postpone the first LLL
-## reduction until the characters of the LLLOffSet-th elementary subgroup
+## reduction until the characters of the LLLOffset-th elementary subgroup
 ## have been induced.
 ##
 ## DELTA

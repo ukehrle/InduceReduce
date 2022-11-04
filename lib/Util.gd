@@ -1,0 +1,2 @@
+DeclareGlobalFunction( "PPart" );
+DeclareGlobalFunction( "PMultiplicity" );

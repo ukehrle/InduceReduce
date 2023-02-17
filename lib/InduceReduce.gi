@@ -10,6 +10,12 @@
 ## Initialize the options record with the default values.
 ## The meaning of the components is as follows:
 ##
+## UseFlintLLL
+##
+## a boolean variable that tells the program to use experimental code to
+## interface with flints implementation of the LLL algorithm.
+## If false, GAPs builtin LLLReducedGramMat will be used.
+##
 ## UsePcPresentation
 ##
 ## a boolean variable that tells the program to convert the p-parts of
@@ -35,14 +41,15 @@
 ##
 ## DELTA
 ##
-## a rational that specifies the parameter delta for the LLL reduction
+## a Float that specifies the parameter delta for the LLL reduction
 ##
 CTUngerDefaultOptions := rec(
+	UseFlintLLL := true,
 	UsePcPresentation := true,
 	DoCyclicFirst := false,
 	DoCyclicLast := false,
 	LLLOffset := 0,
-	Delta := 3/4
+	Delta := 0.75
 );
 
 #############################################################################
@@ -470,7 +477,11 @@ InstallValue( IndRed , rec(
 		if Opt.LLLOffset>0 then
 			GR.m:=Size(GR.Gram);
 		else
-			temp:=LLLReducedGramMat(GR.Gram,Opt.Delta); # LLL reduction on gram matrix
+			if Opt.UseFlintLLL then
+				temp:=LLLReducedGramMatFLINT(GR.Gram,Opt.Delta); # LLL reduction on gram matrix
+			else
+				temp:=LLLReducedGramMat(GR.Gram,Opt.Delta); # LLL reduction on gram matrix
+			fi;
 			GR.Gram:=temp.remainder;
 			GR.B:=temp.transformation*GR.B;
 			temp:=[];

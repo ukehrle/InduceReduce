@@ -86,10 +86,10 @@ InstallValue( IndRed , rec(
 		GR.k:=Size(GR.classes); # number of conjugacy classes
 		GR.classreps:=List(GR.classes,x->Representative(x)); # class representatives
 		GR.orders:=List(GR.classreps, x->Order(x)); # element orders
-		    Info(InfoCTUnger, 1, "Induce/Restrict: group with ",
-		         Length(GR.orders), " conjugacy classes.");
-		    Info(InfoCTUnger, 2, "Induce/Restrict: orders of class reps: ",
-		         GR.orders);
+			Info(InfoCTUnger, 1, "Induce/Restrict: group with ",
+				Length(GR.orders), " conjugacy classes.");
+			Info(InfoCTUnger, 2, "Induce/Restrict: orders of class reps: ",
+				GR.orders);
 		GR.perm:=Sortex(GR.orders,function(x,y) return y<x; end);
 			# sort by decreasing order of representatives
 		GR.classes:=Permuted(GR.classes,GR.perm); # adjust the order of classes and classreps
@@ -675,8 +675,8 @@ local GR, Opt, T;
 	T.OrdersClassRepresentatives:=Permuted(GR.orders,Inverse(GR.perm));
 	T.SizesCentralizers:=Permuted(List(GR.ccsizes,x->GR.n/x),Inverse(GR.perm));
 	T.Irr:=GR.Ir;
-    T.UnderlyingGroup:=UnderlyingGroup(GR.C);
-    T.IdentificationOfConjugacyClasses:=IdentificationOfConjugacyClasses(GR.C);
+	T.UnderlyingGroup:=UnderlyingGroup(GR.C);
+	T.IdentificationOfConjugacyClasses:=IdentificationOfConjugacyClasses(GR.C);
 	T.InfoText:="Computed using Unger's induce-reduce algorithm";
 	ConvertToCharacterTableNC(T);
 	return T;

@@ -5,3 +5,4 @@
 #
 ReadPackage( "InduceReduce", "lib/InduceReduce.gi");
 ReadPackage( "InduceReduce", "lib/BaumClausenLayered.gi");
+ReadPackage( "InduceReduce", "lib/CheapCharacters.gi");

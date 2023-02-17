@@ -6,3 +6,4 @@
 
 ReadPackage( "InduceReduce", "lib/InduceReduce.gd");
 ReadPackage( "InduceReduce", "lib/BaumClausenLayered.gd");
+ReadPackage( "InduceReduce", "lib/CheapCharacters.gd");

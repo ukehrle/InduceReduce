@@ -67,7 +67,8 @@ CTUngerDefaultOptions := rec(
 	LLLOffset := 0,
 	Delta := 0.75,
 	UseFiniteFields := false,
-	IncrementalBaumClausen := true
+	IncrementalBaumClausen := true,
+	InitWithCheapChars := true
 );
 
 #############################################################################
@@ -161,6 +162,10 @@ InstallValue( IndRed , rec(
 		else
 			GR.omega := E(GR.e);
 			GR.ninv := 1/GR.n;
+		fi;
+		if Opt.InitWithCheapChars and (not Opt.UseFiniteFields) then
+			IRInitStandardChars(GR);
+			IndRed.Reduce(GR, [1..GR!.k], TR, Opt);
 		fi;
 		return GR;
 	end ,

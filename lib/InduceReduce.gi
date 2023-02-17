@@ -10,6 +10,13 @@
 ## Initialize the options record with the default values.
 ## The meaning of the components is as follows:
 ##
+## UsePcPresentation
+##
+## a boolean variable that tells the program to convert the p-parts of
+## elementary subgroups to PcGroups before computing their irreducible
+## characters. Otherwise their inherited subgroup
+## representation will be used.
+##
 ## DoCyclicFirst
 ##
 ## a boolean variable that tells the program to induce the charaters of all
@@ -31,6 +38,7 @@
 ## a rational that specifies the parameter delta for the LLL reduction
 ##
 CTUngerDefaultOptions := rec(
+	UsePcPresentation := true,
 	DoCyclicFirst := false,
 	DoCyclicLast := false,
 	LLLOffset := 0,
@@ -292,12 +300,12 @@ InstallValue( IndRed , rec(
 
 #############################################################################
 ##
-#F IndRed.InitElementary( <GR> , <TR> )
+#F IndRed.InitElementary( <GR>, <TR>, <Opt> )
 ##
 ## initialize data concerning the elementary subgroups and exclude its
 ## subgroups and their conjugates from the computations yet to come.
 ##
-	InitElementary:=function(GR,TR)
+	InitElementary:=function(GR,TR,Opt)
 		local i,j,i1,j1,p,temp,powermap;
 		if GR.Elementary.isCyclic then
 			GR.Elementary.n:=GR.orders[GR.IndexCyc]; # order of the elementary group
@@ -313,12 +321,24 @@ InstallValue( IndRed , rec(
 			GR.Elementary.XE:=TR.Vandermonde(GR); # character table
 		else
 			GR.Elementary.n:=GR.orders[GR.IndexCyc]*Size(GR.Elementary.P); # order
-			GR.Elementary.ctblP:=CharacterTable(GR.Elementary.P);
-				# character table of p-group
-			GR.Elementary.classrepsP:=List(ConjugacyClasses(GR.Elementary.ctblP),
-				x->Representative(x));
-				#classes of p-group in corresponding order
-			GR.Elementary.ccsizesP:=List(ConjugacyClasses(GR.Elementary.ctblP),x->Size(x)); 				# class sizes p-group
+			if Opt.UsePcPresentation then
+				GR.Elementary.pcIso := IsomorphismPcGroup(GR.Elementary.P);
+				GR.Elementary.pcP := Image(GR.Elementary.pcIso);
+				GR.Elementary.pcCtblP := CharacterTable(GR.Elementary.pcP);
+				GR.Elementary.pcClassrepsP := List(ConjugacyClasses(GR.Elementary.pcCtblP), x->Representative(x));
+				GR.Elementary.classrepsP := List(GR.Elementary.pcClassrepsP, x -> PreImagesRepresentative(GR.Elementary.pcIso, x));
+				GR.Elementary.ccsizesP:=List(ConjugacyClasses(GR.Elementary.pcCtblP),x->Size(x));
+				GR.Elementary.XP:=Irr(GR.Elementary.pcCtblP);
+			else
+				GR.Elementary.ctblP:=CharacterTable(GR.Elementary.P);
+					# character table of p-group
+				GR.Elementary.classrepsP:=List(ConjugacyClasses(GR.Elementary.ctblP),
+					x->Representative(x));
+					#classes of p-group in corresponding order
+				GR.Elementary.ccsizesP:=List(ConjugacyClasses(GR.Elementary.ctblP),x->Size(x)); 				# class sizes p-group
+				GR.Elementary.XP:=Irr(GR.Elementary.ctblP);
+					# irreducible characters of the p-group
+			fi;
 			GR.Elementary.kP:=Size(GR.Elementary.classrepsP); # number of classes of p-group
 			GR.Elementary.classrepsZ:=TR.ClassesCyclic(GR);
 				# class representatives cyclic group
@@ -341,8 +361,6 @@ InstallValue( IndRed , rec(
 			GR.Elementary.classfusion:=TR.ClassFusion(GR);
 				# compute the fusion of conjugacy classes of the elementary group
 				# to conjugacy classes of G
-			GR.Elementary.XP:=Irr(GR.Elementary.ctblP);
-				# irreducible characters of the p-group
 			GR.Elementary.XZ:=TR.Vandermonde(GR); # character table of the cycic group
 			GR.Elementary.XE:=[]; # compute character table of the elementary group
 			for i in [1..GR.Elementary.kP] do
@@ -558,7 +576,7 @@ local TR, RedTR, H, ccsizesH, temp, it;
 	
 		IndRed.FindElementary(GR,Opt); # find elementary subgroup
 	
-		IndRed.InitElementary(GR,TR); # determine information needed about elementary subgroup
+		IndRed.InitElementary(GR,TR,Opt); # determine information needed about elementary subgroup
 	
 	
 		Info(InfoCTUnger, 1, "Induce/Restrict: Trying [|Z|, |P|, k(E)] = ",

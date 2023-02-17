@@ -248,8 +248,11 @@ InstallValue( IndRed , rec(
 		end;
 
 		## compute powermap of l-th class representative and add it to GR
+		##
+		## Note: the power maps are off-by-one:
+		## in the i-th component is the i-1-th power of the representative
 		TR.PowMap:= function(GR,l)
-		local h, res, i, ord;
+		local h, res, i, j, ord, clres, clord;
 			if GR.orders[l]=1 then GR.powermaps[l]:=[l]; fi; 
 			res:=[TR.FindClass(GR,One(GR.G),1),l];
 			h:=GR.classreps[l]^2;
@@ -260,7 +263,18 @@ InstallValue( IndRed , rec(
 			
 				h:=h*GR.classreps[l];
 			od;
-			GR.powermaps[l]:=res;
+			GR.powermaps[l] := res;
+			# fill in the power maps for the classes in res
+			for i in res do
+				if not IsBound(GR.powermaps[i]) then
+					clres := [];
+					clord := GR.orders[i];
+					for j in [0..clord-1] do
+						clres[j+1] := res[(j*i mod ord)+1];
+					od;
+					GR.powermaps[i] := clres;
+				fi;
+			od;
 		end;
 
 		## Compute fusion of conjugacy classes of GR.Elementary to classes of G
@@ -531,16 +545,6 @@ InstallValue( IndRed , rec(
 				fi;
 			od;
 		fi;
-		for i in [0..GR.orders[GR.IndexCyc]-1] do
-			# derive the powermaps of powers of GR.Elementary.z
-			if not IsBound(GR.powermaps[powermap[i+1]]) then
-				GR.powermaps[powermap[i+1]]:=[];
-				for j in [0..GR.orders[powermap[i+1]]-1] do
-					Add(GR.powermaps[powermap[i+1]],
-						powermap[ i*j mod GR.orders[GR.IndexCyc] +1 ]);
-				od;
-			fi;
-		od;
 		return;
 	end ,
 

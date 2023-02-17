@@ -23,6 +23,11 @@
 ## characters. Otherwise their inherited subgroup
 ## representation will be used.
 ##
+## PreComputePowMaps
+##
+## A boolean that indicates whether powermaps should be computed first.
+## In this case the inverse mapping is also used to compute inner products.
+##
 ## DoCyclicFirst
 ##
 ## a boolean variable that tells the program to induce the charaters of all
@@ -46,6 +51,7 @@
 CTUngerDefaultOptions := rec(
 	UseFlintLLL := true,
 	UsePcPresentation := true,
+	PreComputePowMaps := false,
 	DoCyclicFirst := false,
 	DoCyclicLast := false,
 	LLLOffset := 0,
@@ -67,8 +73,9 @@ InstallValue( IndRed , rec(
 ## Initialization of the algorithm, returns a record which contains all
 ## relevant data concerning the group G
 ##
-	Init:=function(G)
-	local GR,i;
+	Init:=function(G, Opt)
+	local GR,i, TR;
+		TR:=IndRed.GroupTools(); # get group tools and reduce tools
 	
 		GR:=rec();
 	
@@ -114,6 +121,12 @@ InstallValue( IndRed , rec(
 		GR.m:=0; # positions from which on characters are not reduced so far
 		GR.centralizers:=[];  # centralizers and powermaps computed so far
 		GR.powermaps:=[];
+		if Opt.PreComputePowMaps or Opt.DoCyclicFirst then
+			for i in [1..GR.k] do
+				TR.PowMap(GR, i);
+			od;
+			GR.inverseClasses := List([1..GR.k], i -> GR.powermaps[i][GR.orders[i]]);
+		fi;
 		return GR;
 	end ,
 
@@ -224,14 +237,23 @@ InstallValue( IndRed , rec(
 	
 		# inner product of class functions x and y
 		ip:= function(GR,x,y)
-			return Sum([1..GR.k], i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
+			if IsBound(GR.inverseClasses) then
+				return Sum([1..GR.k], i->x[i]*y[GR.inverseClasses[i]]*GR.ccsizes[i])/GR.n;
+			else
+				return Sum([1..GR.k], i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
+			fi;
 		end;
 	
 		# inner product of class functions x and y with few entries
 		# one of them has all non-zero entries in GR.Elementary.FusedClasses
 		ipSparse:= function(GR,x,y)
-			return Sum(GR.Elementary.FusedClasses,
-				i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
+			if IsBound(GR.inverseClasses) then
+				return Sum(GR.Elementary.FusedClasses,
+					i->x[i]*y[GR.inverseClasses[i]]*GR.ccsizes[i])/GR.n;
+			else
+				return Sum(GR.Elementary.FusedClasses,
+					i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
+			fi;
 		end;
 	
 		# reduce new induced characters by the irreducibles found so far
@@ -621,8 +643,6 @@ InstallGlobalFunction( CharacterTableUnger,
 function(G, Options...)
 local GR, Opt, T;
 
-	GR:=IndRed.Init(G);
-	
 	Opt:=ShallowCopy(CTUngerDefaultOptions);
 	if Length(Options)>0 and IsRecord(Options[1]) then
 		if IsBound(Options[1].DoCyclicFirst) and IsBool(Options[1].DoCyclicFirst) then
@@ -639,6 +659,8 @@ local GR, Opt, T;
 			Opt.Delta:=Options[1].Delta;
 		fi;
 	fi;
+
+	GR:=IndRed.Init(G, Opt);
 
 	InduceReduce(GR,Opt); # do the induce-reduce algorithm
 

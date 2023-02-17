@@ -58,7 +58,7 @@
 ## a boolean variable that tells the program to use finite field arithmetic
 ##
 CTUngerDefaultOptions := rec(
-	UseFlintLLL := true,
+	UseFlintLLL := IsPackageLoaded("LLL"),
 	UsePositionClass := IsPackageLoaded("PositionClass"),
 	UsePcPresentation := true,
 	PreComputePowMaps := false,

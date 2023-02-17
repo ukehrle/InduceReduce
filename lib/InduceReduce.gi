@@ -66,7 +66,8 @@ CTUngerDefaultOptions := rec(
 	DoCyclicLast := false,
 	LLLOffset := 0,
 	Delta := 0.75,
-	UseFiniteFields := false
+	UseFiniteFields := false,
+	IncrementalBaumClausen := true
 );
 
 #############################################################################
@@ -111,6 +112,8 @@ InstallValue( IndRed , rec(
 		GR.CentralizerPrimes:=List([1..GR.k],
 			x-> Filtered( Set(Factors(GR.n/GR.ccsizes[x])) , y-> not y in GR.OrderPrimes[x] )  );
 			# primes dividing the order of the centralizer, but not the order of the element
+		GR.BaumClausenState:=List([1..GR.k], i -> rec());
+			# state of partial baum clausen runs
 		GR.InduceCyclic:=ListWithIdenticalEntries(GR.k,true);
 			# the characters of the corresponding cyclic groups still need to be induced
 		GR.NumberOfCyclic:=GR.k; # number of cyclic groups whose characters need to be induced
@@ -423,13 +426,10 @@ InstallValue( IndRed , rec(
 				Elementary.z:=GR.classreps[GR.IndexCyc];
 				Elementary.p:=Random(GR.CentralizerPrimes[GR.IndexCyc]);
 					# choose a random prime for that conjugacy class
-				RemoveSet(GR.CentralizerPrimes[GR.IndexCyc] , Elementary.p);
-				GR.NumberOfPrimes:=GR.NumberOfPrimes-1;
 				if not IsBound(GR.centralizers[GR.IndexCyc]) then
 					# compute the centralizer, if not done already
 					GR.centralizers[GR.IndexCyc]:=Centralizer(GR.G,Elementary.z);
 				fi;
-				Elementary.P:=SylowSubgroup(GR.centralizers[GR.IndexCyc],Elementary.p);
 				break;
 			elif GR.InduceCyclic[GR.IndexCyc] and
 				(not Opt.DoCyclicLast or GR.NumberOfPrimes<=0) then
@@ -438,8 +438,6 @@ InstallValue( IndRed , rec(
 				# when all primes have been used
 				Elementary.isCyclic:=true;
 				Elementary.z:=GR.classreps[GR.IndexCyc];
-				GR.InduceCyclic[GR.IndexCyc]:=false;
-				GR.NumberOfCyclic:=GR.NumberOfCyclic-1;
 				break;
 			fi;
 		od;
@@ -448,12 +446,12 @@ InstallValue( IndRed , rec(
 
 #############################################################################
 ##
-#F IndRed.InitElementary( <GR>, <TR>, <Opt> )
+#F IndRed.ProcessElementary( <GR>, <TR>, <Opt> )
 ##
 ## initialize data concerning the elementary subgroups and exclude its
 ## subgroups and their conjugates from the computations yet to come.
 ##
-	InitElementary:=function(GR,Elementary,TR,Opt)
+	ProcessElementary:=function(GR,Elementary,TR,Opt)
 		local i,j,i1,j1,p,temp,powermap;
 		if Elementary.isCyclic then
 			Elementary.n:=GR.orders[GR.IndexCyc]; # order of the elementary group
@@ -467,7 +465,12 @@ InstallValue( IndRed , rec(
 				# class fusion equals power map for cyclic group
 			Elementary.classreps:=TR.ClassesCyclic(GR, Elementary); # class representatives
 			Elementary.XE:=TR.Vandermonde(GR); # character table
+			GR.InduceCyclic[GR.IndexCyc]:=false;
+			GR.NumberOfCyclic:=GR.NumberOfCyclic-1;
 		else
+			RemoveSet(GR.CentralizerPrimes[GR.IndexCyc] , Elementary.p);
+			GR.NumberOfPrimes:=GR.NumberOfPrimes-1;
+			Elementary.P:=SylowSubgroup(GR.centralizers[GR.IndexCyc],Elementary.p);
 			Elementary.n:=GR.orders[GR.IndexCyc]*Size(Elementary.P); # order
 			if Opt.UsePcPresentation then
 				Elementary.pcIso := IsomorphismPcGroup(Elementary.P);
@@ -552,6 +555,138 @@ InstallValue( IndRed , rec(
 					Elementary.p in GR.CentralizerPrimes[i] then
 					RemoveSet(GR.CentralizerPrimes[i],Elementary.p);
 					GR.NumberOfPrimes:=GR.NumberOfPrimes-1;
+				fi;
+			od;
+		fi;
+		return;
+	end ,
+
+#############################################################################
+##
+#F IndRed.ProcessElementaryIncremental( <GR>, <TR>, <Opt> )
+##
+## initialize data concerning the elementary subgroups and exclude its
+## subgroups and their conjugates from the computations yet to come.
+##
+	ProcessElementaryIncremental:=function(GR,Elementary,TR,Opt)
+		local bcstate,info,i,j,i1,j1,p,temp,powermap;
+
+		# this is as above
+		# TODO: refactor common code
+		if Elementary.isCyclic then
+			Elementary.n:=GR.orders[GR.IndexCyc]; # order of the elementary group
+			Elementary.k:=Elementary.n; # number of conjugacy classes
+			Elementary.ccsizes:=ListWithIdenticalEntries(Elementary.k,1); # class sizes
+			if not IsBound(GR.powermaps[GR.IndexCyc]) then # if necessary, compute powermap
+				TR.PowMap(GR,GR.IndexCyc);
+			fi;
+			powermap:=GR.powermaps[GR.IndexCyc];
+			Elementary.classfusion:=powermap;
+				# class fusion equals power map for cyclic group
+			Elementary.classreps:=TR.ClassesCyclic(GR, Elementary); # class representatives
+			Elementary.XE:=TR.Vandermonde(GR); # character table
+			GR.InduceCyclic[GR.IndexCyc]:=false;
+			GR.NumberOfCyclic:=GR.NumberOfCyclic-1;
+		else
+			if not IsBound(GR.BaumClausenState[GR.IndexCyc].(String(Elementary.p))) then
+				Info(InfoCTUnger, 2, "Initializing processing of associated elementary subgroup ", GR.IndexCyc, ",", Elementary.p);
+				bcstate := rec();
+				GR.BaumClausenState[GR.IndexCyc].(String(Elementary.p)) := bcstate;
+
+				bcstate.XZ:=TR.Vandermonde(GR); # character table of the cylic group
+				bcstate.kZ:=GR.orders[GR.IndexCyc]; # number of classes cyclic group
+				if not IsBound(GR.powermaps[GR.IndexCyc]) then # if necessary, compute powermap
+					TR.PowMap(GR,GR.IndexCyc);
+				fi;
+				bcstate.classrepsZ:=TR.ClassesCyclic(GR, Elementary); # class representatives cyclic group
+
+				bcstate.sylow:=SylowSubgroup(GR.centralizers[GR.IndexCyc],Elementary.p);
+				bcstate.pcIso := IsomorphismPcGroup(bcstate.sylow);
+				bcstate.BCR := BCLInit(Image(bcstate.pcIso));
+			fi;
+
+			bcstate := GR.BaumClausenState[GR.IndexCyc].(String(Elementary.p));
+			Info(InfoCTUnger, 2, "Performing a single step of associated elementary subgroup ", GR.IndexCyc, ",", Elementary.p);
+			BCLStep(bcstate.BCR);
+			info := BCLGetIrr(bcstate.BCR);
+			Elementary.nP := Order(info.G);
+			Elementary.pcClassrepsP := info.clreps;
+			Elementary.classrepsP := List(Elementary.pcClassrepsP, x -> PreImagesRepresentative(bcstate.pcIso, x));
+			Elementary.ccsizesP:= info.clsizes;
+			Elementary.kP:=Size(Elementary.classrepsP); # number of classes of p-group
+			Elementary.XP:=List(info.irr, List);
+			Elementary.XZ:=bcstate.XZ;
+			Elementary.classrepsZ:=bcstate.classrepsZ;
+			Elementary.kZ:=bcstate.kZ;
+
+			# mark the prime as finished and free up memory
+			if bcstate.BCR.complete then
+				Info(InfoCTUnger, 2, "Finished processing associated elementary subgroup ", GR.IndexCyc, ",", Elementary.p);
+				Unbind(GR.BaumClausenState[GR.IndexCyc].(String(Elementary.p)));
+				RemoveSet(GR.CentralizerPrimes[GR.IndexCyc] , Elementary.p);
+				GR.NumberOfPrimes:=GR.NumberOfPrimes-1;
+			fi;
+
+			# this is mostly the same as above.
+			Elementary.n:=GR.orders[GR.IndexCyc]*Elementary.nP; # order
+			powermap:=GR.powermaps[GR.IndexCyc];
+			Elementary.k:=Elementary.kP*Elementary.kZ; # number of classes elementary group
+			Elementary.classreps:=[]; # compute the class representatives
+			Elementary.ccsizes:=[]; # and the class sizes
+			for i in [1..Elementary.kP] do
+				for j in [1..Elementary.kZ] do
+					Add(Elementary.classreps ,
+						Elementary.classrepsP[i]*Elementary.classrepsZ[j]);
+					Add(Elementary.ccsizes,Elementary.ccsizesP[i]);
+				od;
+			od;
+			Elementary.classfusion:=TR.ClassFusion(GR, Elementary);
+				# compute the fusion of conjugacy classes of the elementary group
+				# to conjugacy classes of G
+			if Opt.UseFiniteFields then
+				Elementary.XP := List(Elementary.XP, chi -> List(chi, GR.ModularMap));
+			fi;
+			Elementary.XE:=[]; # compute character table of the elementary group
+			for i in [1..Elementary.kP] do
+				for j in [1..Elementary.kZ] do
+					temp:=[];
+					for i1 in [1..Elementary.kP] do
+						for j1 in [1..Elementary.kZ] do
+							Add(temp,Elementary.XP[i][i1]*Elementary.XZ[j][j1]);
+						od;
+					od;
+					Add(Elementary.XE,temp);
+				od;
+			od;
+		fi;
+		Elementary.FusedClasses:=Set(Elementary.classfusion);
+			# positions of classes of G which contain classes of the elementary group
+		for i in Elementary.FusedClasses do # eliminate some elementary subgroups:
+			if GR.InduceCyclic[i] then # the cyclic subgroups of the elementary groups
+				GR.InduceCyclic[i]:=false;
+				GR.NumberOfCyclic:=GR.NumberOfCyclic-1;
+			fi;
+			if Elementary.isCyclic then
+				# some elementary groups contained in the cyclic group
+				for p in GR.CentralizerPrimes[i] do
+					if TR.pPart(GR.n/GR.ccsizes[i],p)=TR.pPart(GR.orders[GR.IndexCyc],p) then
+						RemoveSet(GR.CentralizerPrimes[i],p);
+						GR.NumberOfPrimes:=GR.NumberOfPrimes-1;
+					fi;
+				od;
+			fi;
+		od;
+		if not Elementary.isCyclic then
+			for i in Set(powermap) do
+				if i <> GR.IndexCyc then
+					# elementary subgroups, where the cyclic part is generated
+					# by a power of Elementary.z and the p-groups coincide
+					if TR.pPart(GR.n/GR.ccsizes[i],Elementary.p) =
+						TR.pPart(GR.n/GR.ccsizes[GR.IndexCyc],Elementary.p) and
+						Elementary.p in GR.CentralizerPrimes[i] then
+						RemoveSet(GR.CentralizerPrimes[i],Elementary.p);
+						GR.NumberOfPrimes:=GR.NumberOfPrimes-1;
+					fi;
 				fi;
 			od;
 		fi;
@@ -670,8 +805,6 @@ InstallValue( IndRed , rec(
 ##
 	tinI:=function(GR)
 	local irr,i,perm;
-		Print("Unit position: ", GR.ordersPos[1], "\n");
-
 		if IsBound(GR.prime) then
 			for i in [1..GR.k] do # adjust the signs
 				if Int(GR.Ir[i][GR.ordersPos[1]]) > GR.normlimit then
@@ -734,12 +867,15 @@ local TR, RedTR, Elementary;
 	
 		Opt.LLLOffset:=Opt.LLLOffset-1;
 		# Opt.LLLOffset postpones the first LLL lattice reduction
-	
+
 		Elementary := IndRed.FindElementary(GR,Opt); # find elementary subgroup
-	
-		IndRed.InitElementary(GR,Elementary,TR,Opt); # determine information needed about elementary subgroup
-	
-	
+
+		if Opt.IncrementalBaumClausen = true then
+			IndRed.ProcessElementaryIncremental(GR,Elementary,TR,Opt);
+		else
+			IndRed.ProcessElementary(GR,Elementary,TR,Opt); # determine information needed about elementary subgroup
+		fi;
+
 		Info(InfoCTUnger, 1, "Induce/Restrict: Trying [|Z|, |P|, k(E)] = ",
 			[ GR.orders[GR.IndexCyc], 
 				Elementary.n/GR.orders[GR.IndexCyc], Elementary.k ]);

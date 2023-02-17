@@ -70,7 +70,7 @@ PackageDoc := rec(
 Dependencies := rec(
   GAP := ">= 4.0",
   NeededOtherPackages := [ [ "GAPDoc", ">= 1.5" ] ],
-  SuggestedOtherPackages := [ [ "LLL", ">= 0.1"  ] ],
+  SuggestedOtherPackages := [ [ "LLL", ">= 0.1"  ], [ "PositionClass", ">= 0.1" ] ],
   ExternalConditions := [ ],
 ),
 

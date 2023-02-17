@@ -16,6 +16,11 @@
 ## interface with flints implementation of the LLL algorithm.
 ## If false, GAPs builtin LLLReducedGramMat will be used.
 ##
+## UsePositionClass
+##
+## a boolean variable that tells the program to use the experimental
+## PositionClass package.
+##
 ## UsePcPresentation
 ##
 ## a boolean variable that tells the program to convert the p-parts of
@@ -54,6 +59,7 @@
 ##
 CTUngerDefaultOptions := rec(
 	UseFlintLLL := true,
+	UsePositionClass := IsPackageLoaded("PositionClass"),
 	UsePcPresentation := true,
 	PreComputePowMaps := false,
 	DoCyclicFirst := false,
@@ -80,7 +86,7 @@ InstallValue( IndRed , rec(
 ##
 	Init:=function(G, Opt)
 	local GR,i, TR, z, prime;
-		TR:=IndRed.GroupTools(); # get group tools and reduce tools
+		TR:=IndRed.GroupTools(Opt); # get group tools and reduce tools
 	
 		GR:=rec();
 	
@@ -211,11 +217,11 @@ InstallValue( IndRed , rec(
 
 #############################################################################
 ##
-#F IndRed.GroupTools( )
+#F IndRed.GroupTools(<Opt>)
 ##
 ## returns a record with different functions used for the algorithm
 ##
-	GroupTools:=function()
+	GroupTools:=function(Opt)
 	local TR;
 		TR:=rec();
 
@@ -229,23 +235,29 @@ InstallValue( IndRed , rec(
 			return res/q;
 		end;
 
-		# find the position of the conjugacy class containing g in GR.classes ,
-		# ord is the order of g
-		TR.FindClass:= function(GR,h,ord)
-		local j;
-			for j in [GR.ordersPos[ord]..GR.k] do
-				if not GR.orders[j]=ord then break; fi;	
-				if h=GR.classreps[j] then 
-				# first check if h actually equals one of the class representatives
-					return j;
-				fi;
-			od;
-			for j in [GR.ordersPos[ord]..GR.k] do
-				if h in GR.classes[j] then
-					return j;
-				fi;
-			od;
-		end;
+		if Opt.UsePositionClass then
+			TR.FindClass := function(GR, h, ord)
+				return PositionClass(GR.G, h, 1000)^GR.perm;
+			end;
+		else
+			# find the position of the conjugacy class containing g in GR.classes ,
+			# ord is the order of g
+			TR.FindClass:= function(GR,h,ord)
+			local j;
+				for j in [GR.ordersPos[ord]..GR.k] do
+					if not GR.orders[j]=ord then break; fi;
+					if h=GR.classreps[j] then
+					# first check if h actually equals one of the class representatives
+						return j;
+					fi;
+				od;
+				for j in [GR.ordersPos[ord]..GR.k] do
+					if h in GR.classes[j] then
+						return j;
+					fi;
+				od;
+			end;
+		fi;
 
 		## compute powermap of l-th class representative and add it to GR
 		##
@@ -696,7 +708,7 @@ InstallGlobalFunction( InduceReduce,
 function(GR,Opt)
 local TR, RedTR, Elementary;
 
-	TR:=IndRed.GroupTools(); # get group tools and reduce tools
+	TR:=IndRed.GroupTools(Opt); # get group tools and reduce tools
 	RedTR:= rec();
 
 

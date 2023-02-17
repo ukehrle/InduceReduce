@@ -277,13 +277,13 @@ InstallValue( IndRed , rec(
 			od;
 		end;
 
-		## Compute fusion of conjugacy classes of GR.Elementary to classes of G
-		TR.ClassFusion:= function(GR)
+		## Compute fusion of conjugacy classes of Elementary to classes of G
+		TR.ClassFusion:= function(GR, Elementary)
 		local i, j, res, ord, found;
 			res:=[];
-			for i in [1..GR.Elementary.k] do
-				ord:=Order(GR.Elementary.classreps[i]);
-				Add(res, TR.FindClass(GR,GR.Elementary.classreps[i],ord));
+			for i in [1..Elementary.k] do
+				ord:=Order(Elementary.classreps[i]);
+				Add(res, TR.FindClass(GR,Elementary.classreps[i],ord));
 			od;
 			return res;
 		end;
@@ -304,13 +304,13 @@ InstallValue( IndRed , rec(
 
 		# conjugacy class representatives of cyclic group corresponding to
 		# the ordering of columns in Vandermonde
-		TR.ClassesCyclic:=function(GR) 
+		TR.ClassesCyclic:=function(GR, Elementary)
 		local res, h;
 			res:=[Identity(GR.G)];
-			h:=GR.Elementary.z;
+			h:=Elementary.z;
 			while not h=Identity(GR.G) do
 				Add(res,h);
-				h:=h*GR.Elementary.z;
+				h:=h*Elementary.z;
 			od;
 			return res;
 		end;
@@ -347,11 +347,11 @@ InstallValue( IndRed , rec(
 		end,
 	
 		# inner product of class functions x and y with few entries
-		# one of them has all non-zero entries in GR.Elementary.FusedClasses
-		ipSparse:= function(GR,x,y)
+		# one of them has all non-zero entries in Elementary.FusedClasses
+		ipSparse:= function(GR,FusedClasses, x,y)
 			local res;
 			if IsBound(GR.inverseClasses) then
-				res := Int(Sum(GR.Elementary.FusedClasses,
+				res := Int(Sum(FusedClasses,
 					i->x[i]*y[GR.inverseClasses[i]]*GR.ccsizes[i])*GR.ninv);
 				if IsBound(GR.normlimit) then
 					if res >= GR.normlimit then
@@ -360,17 +360,17 @@ InstallValue( IndRed , rec(
 				fi;
 				return res;
 			else
-				return Sum(GR.Elementary.FusedClasses,
+				return Sum(FusedClasses,
 					i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
 			fi;
 		end,
 	
 		# reduce new induced characters by the irreducibles found so far
-		redsparse:=function(GR)
+		redsparse:=function(GR, FusedClasses)
 		local mat,pos;
 			if GR.m+1>Size(GR.B) then return; fi;
 			pos:=[GR.m+1..Size(GR.B)];
-			mat:=List( pos , x->List(GR.Ir, y -> IndRed.ipSparse(GR,GR.B[x],y) ) );
+			mat:=List( pos , x->List(GR.Ir, y -> IndRed.ipSparse(GR, FusedClasses, GR.B[x],y) ) );
 			GR.B{pos}:=GR.B{pos}-mat*GR.Ir;
 		end,
 	
@@ -418,7 +418,6 @@ InstallValue( IndRed , rec(
 					GR.centralizers[GR.IndexCyc]:=Centralizer(GR.G,Elementary.z);
 				fi;
 				Elementary.P:=SylowSubgroup(GR.centralizers[GR.IndexCyc],Elementary.p);
-				GR.Elementary:=Elementary;
 				break;
 			elif GR.InduceCyclic[GR.IndexCyc] and
 				(not Opt.DoCyclicLast or GR.NumberOfPrimes<=0) then
@@ -429,11 +428,10 @@ InstallValue( IndRed , rec(
 				Elementary.z:=GR.classreps[GR.IndexCyc];
 				GR.InduceCyclic[GR.IndexCyc]:=false;
 				GR.NumberOfCyclic:=GR.NumberOfCyclic-1;
-				GR.Elementary:=Elementary;
 				break;
 			fi;
 		od;
-		return;
+		return Elementary;
 	end ,
 
 #############################################################################
@@ -443,87 +441,87 @@ InstallValue( IndRed , rec(
 ## initialize data concerning the elementary subgroups and exclude its
 ## subgroups and their conjugates from the computations yet to come.
 ##
-	InitElementary:=function(GR,TR,Opt)
+	InitElementary:=function(GR,Elementary,TR,Opt)
 		local i,j,i1,j1,p,temp,powermap;
-		if GR.Elementary.isCyclic then
-			GR.Elementary.n:=GR.orders[GR.IndexCyc]; # order of the elementary group
-			GR.Elementary.k:=GR.Elementary.n; # number of conjugacy classes
-			GR.Elementary.ccsizes:=ListWithIdenticalEntries(GR.Elementary.k,1); # class sizes
+		if Elementary.isCyclic then
+			Elementary.n:=GR.orders[GR.IndexCyc]; # order of the elementary group
+			Elementary.k:=Elementary.n; # number of conjugacy classes
+			Elementary.ccsizes:=ListWithIdenticalEntries(Elementary.k,1); # class sizes
 			if not IsBound(GR.powermaps[GR.IndexCyc]) then # if necessary, compute powermap
 				TR.PowMap(GR,GR.IndexCyc);
 			fi;
 			powermap:=GR.powermaps[GR.IndexCyc];
-			GR.Elementary.classfusion:=powermap; 
+			Elementary.classfusion:=powermap;
 				# class fusion equals power map for cyclic group
-			GR.Elementary.classreps:=TR.ClassesCyclic(GR); # class representatives
-			GR.Elementary.XE:=TR.Vandermonde(GR); # character table
+			Elementary.classreps:=TR.ClassesCyclic(GR, Elementary); # class representatives
+			Elementary.XE:=TR.Vandermonde(GR); # character table
 		else
-			GR.Elementary.n:=GR.orders[GR.IndexCyc]*Size(GR.Elementary.P); # order
+			Elementary.n:=GR.orders[GR.IndexCyc]*Size(Elementary.P); # order
 			if Opt.UsePcPresentation then
-				GR.Elementary.pcIso := IsomorphismPcGroup(GR.Elementary.P);
-				GR.Elementary.pcP := Image(GR.Elementary.pcIso);
-				GR.Elementary.pcCtblP := CharacterTable(GR.Elementary.pcP);
-				GR.Elementary.pcClassrepsP := List(ConjugacyClasses(GR.Elementary.pcCtblP), x->Representative(x));
-				GR.Elementary.classrepsP := List(GR.Elementary.pcClassrepsP, x -> PreImagesRepresentative(GR.Elementary.pcIso, x));
-				GR.Elementary.ccsizesP:=List(ConjugacyClasses(GR.Elementary.pcCtblP),x->Size(x));
-				GR.Elementary.XP:=Irr(GR.Elementary.pcCtblP);
+				Elementary.pcIso := IsomorphismPcGroup(Elementary.P);
+				Elementary.pcP := Image(Elementary.pcIso);
+				Elementary.pcCtblP := CharacterTable(Elementary.pcP);
+				Elementary.pcClassrepsP := List(ConjugacyClasses(Elementary.pcCtblP), x->Representative(x));
+				Elementary.classrepsP := List(Elementary.pcClassrepsP, x -> PreImagesRepresentative(Elementary.pcIso, x));
+				Elementary.ccsizesP:=List(ConjugacyClasses(Elementary.pcCtblP),x->Size(x));
+				Elementary.XP:=Irr(Elementary.pcCtblP);
 			else
-				GR.Elementary.ctblP:=CharacterTable(GR.Elementary.P);
+				Elementary.ctblP:=CharacterTable(Elementary.P);
 					# character table of p-group
-				GR.Elementary.classrepsP:=List(ConjugacyClasses(GR.Elementary.ctblP),
+				Elementary.classrepsP:=List(ConjugacyClasses(Elementary.ctblP),
 					x->Representative(x));
 					#classes of p-group in corresponding order
-				GR.Elementary.ccsizesP:=List(ConjugacyClasses(GR.Elementary.ctblP),x->Size(x)); 				# class sizes p-group
-				GR.Elementary.XP:=Irr(GR.Elementary.ctblP);
+				Elementary.ccsizesP:=List(ConjugacyClasses(Elementary.ctblP),x->Size(x)); 				# class sizes p-group
+				Elementary.XP:=Irr(Elementary.ctblP);
 					# irreducible characters of the p-group
 			fi;
-			GR.Elementary.kP:=Size(GR.Elementary.classrepsP); # number of classes of p-group
-			GR.Elementary.classrepsZ:=TR.ClassesCyclic(GR);
+			Elementary.kP:=Size(Elementary.classrepsP); # number of classes of p-group
+			Elementary.classrepsZ:=TR.ClassesCyclic(GR, Elementary);
 				# class representatives cyclic group
-			GR.Elementary.kZ:=GR.orders[GR.IndexCyc]; # number of classes cyclic group
+			Elementary.kZ:=GR.orders[GR.IndexCyc]; # number of classes cyclic group
 			if not IsBound(GR.powermaps[GR.IndexCyc]) then # if necessary, compute powermap
 				TR.PowMap(GR,GR.IndexCyc);
 			fi;
 			powermap:=GR.powermaps[GR.IndexCyc];
-			GR.Elementary.k:=GR.Elementary.kP*GR.Elementary.kZ;
+			Elementary.k:=Elementary.kP*Elementary.kZ;
 				# number of classes elementary group
-			GR.Elementary.classreps:=[]; # compute the class representatives
-			GR.Elementary.ccsizes:=[]; # and the class sizes
-			for i in [1..GR.Elementary.kP] do
-				for j in [1..GR.Elementary.kZ] do
-					Add(GR.Elementary.classreps ,
-						GR.Elementary.classrepsP[i]*GR.Elementary.classrepsZ[j]);
-					Add(GR.Elementary.ccsizes,GR.Elementary.ccsizesP[i]);
+			Elementary.classreps:=[]; # compute the class representatives
+			Elementary.ccsizes:=[]; # and the class sizes
+			for i in [1..Elementary.kP] do
+				for j in [1..Elementary.kZ] do
+					Add(Elementary.classreps ,
+						Elementary.classrepsP[i]*Elementary.classrepsZ[j]);
+					Add(Elementary.ccsizes,Elementary.ccsizesP[i]);
 				od;
 			od;
-			GR.Elementary.classfusion:=TR.ClassFusion(GR);
+			Elementary.classfusion:=TR.ClassFusion(GR, Elementary);
 				# compute the fusion of conjugacy classes of the elementary group
 				# to conjugacy classes of G
-			GR.Elementary.XZ:=TR.Vandermonde(GR); # character table of the cycic group
+			Elementary.XZ:=TR.Vandermonde(GR); # character table of the cycic group
 			if Opt.UseFiniteFields then
-				GR.Elementary.XP := List(GR.Elementary.XP, chi -> List(chi, GR.ModularMap));
+				Elementary.XP := List(Elementary.XP, chi -> List(chi, GR.ModularMap));
 			fi;
-			GR.Elementary.XE:=[]; # compute character table of the elementary group
-			for i in [1..GR.Elementary.kP] do
-				for j in [1..GR.Elementary.kZ] do
+			Elementary.XE:=[]; # compute character table of the elementary group
+			for i in [1..Elementary.kP] do
+				for j in [1..Elementary.kZ] do
 					temp:=[];
-					for i1 in [1..GR.Elementary.kP] do
-						for j1 in [1..GR.Elementary.kZ] do
-							Add(temp,GR.Elementary.XP[i][i1]*GR.Elementary.XZ[j][j1]);
+					for i1 in [1..Elementary.kP] do
+						for j1 in [1..Elementary.kZ] do
+							Add(temp,Elementary.XP[i][i1]*Elementary.XZ[j][j1]);
 						od;
 					od;
-					Add(GR.Elementary.XE,temp);
+					Add(Elementary.XE,temp);
 				od;
 			od;
 		fi;
-		GR.Elementary.FusedClasses:=Set(GR.Elementary.classfusion); 
+		Elementary.FusedClasses:=Set(Elementary.classfusion);
 			# positions of classes of G which contain classes of the elementary group
-		for i in GR.Elementary.FusedClasses do # eliminate some elementary subgroups:
+		for i in Elementary.FusedClasses do # eliminate some elementary subgroups:
 			if GR.InduceCyclic[i] then # the cyclic subgroups of the elementary groups
 				GR.InduceCyclic[i]:=false;
 				GR.NumberOfCyclic:=GR.NumberOfCyclic-1;
 			fi;
-			if GR.Elementary.isCyclic then
+			if Elementary.isCyclic then
 				# some elementary groups contained in the cyclic group
 				for p in GR.CentralizerPrimes[i] do
 					if TR.pPart(GR.n/GR.ccsizes[i],p)=TR.pPart(GR.orders[GR.IndexCyc],p) then
@@ -533,14 +531,14 @@ InstallValue( IndRed , rec(
 				od;
 			fi;
 		od;
-		if not GR.Elementary.isCyclic then
+		if not Elementary.isCyclic then
 			for i in Set(powermap) do 
 				# elementary subgroups, where the cyclic part is generated
-				# by a power of GR.Elementary.z and the p-groups coincide
-				if TR.pPart(GR.n/GR.ccsizes[i],GR.Elementary.p) =
-					TR.pPart(GR.n/GR.ccsizes[GR.IndexCyc],GR.Elementary.p) and
-					GR.Elementary.p in GR.CentralizerPrimes[i] then
-					RemoveSet(GR.CentralizerPrimes[i],GR.Elementary.p);
+				# by a power of Elementary.z and the p-groups coincide
+				if TR.pPart(GR.n/GR.ccsizes[i],Elementary.p) =
+					TR.pPart(GR.n/GR.ccsizes[GR.IndexCyc],Elementary.p) and
+					Elementary.p in GR.CentralizerPrimes[i] then
+					RemoveSet(GR.CentralizerPrimes[i],Elementary.p);
 					GR.NumberOfPrimes:=GR.NumberOfPrimes-1;
 				fi;
 			od;
@@ -555,12 +553,12 @@ InstallValue( IndRed , rec(
 ## induce characters from all cyclic subgroups
 ##
 	InduceCyc:=function(GR)
-	local ords, inds;
-		GR.Elementary:=rec();
+	local ords, inds, Elementary;
+		Elementary:=rec();
 		ords := ShallowCopy(OrdersClassRepresentatives(GR.C));
 		inds := [1..NrConjugacyClasses(GR.C)];
 		SortParallel(ords, inds, function(x,y) return x>y; end);
-		GR.Elementary.FusedClasses := [1..GR.k];
+		Elementary.FusedClasses := [1..GR.k];
 		Append(GR.B, List(InducedCyclic(GR.C,inds,"all"), ch-> Permuted(ch, GR.perm)));
 		return;
 	end ,
@@ -570,16 +568,16 @@ InstallValue( IndRed , rec(
 #F IndRed.Induce( <GR> )
 ##
 ## Induce all irreducible characters of the elementary subgroup in 
-## GR.Elementary to the group GR.G and add them to GR.B
+## Elementary to the group GR.G and add them to GR.B
 ##
-	Induce:=function(GR)
+	Induce:=function(GR, Elementary)
 	local mat, i, j;
-		mat:=NullMat(GR.Elementary.k,GR.k);
-		for i in [1..GR.Elementary.k] do
-			for j in [1..GR.Elementary.k] do
-				mat[i][GR.Elementary.classfusion[j]]:=mat[i][GR.Elementary.classfusion[j]]+
-					( (GR.n/GR.ccsizes[GR.Elementary.classfusion[j]]) / 
-					(GR.Elementary.n/GR.Elementary.ccsizes[j])*GR.Elementary.XE[i][j] );
+		mat:=NullMat(Elementary.k,GR.k);
+		for i in [1..Elementary.k] do
+			for j in [1..Elementary.k] do
+				mat[i][Elementary.classfusion[j]]:=mat[i][Elementary.classfusion[j]]+
+					( (GR.n/GR.ccsizes[Elementary.classfusion[j]]) /
+					(Elementary.n/Elementary.ccsizes[j])*Elementary.XE[i][j] );
 			od;
 		od;
 		mat:=Set(mat); # remove duplicates
@@ -589,14 +587,14 @@ InstallValue( IndRed , rec(
 
 #############################################################################
 #
-# IndRed.Reduce( <GR>, ><RedTR> )
+# IndRed.Reduce( <GR>, <FusedClasses>, <RedTR> )
 #
 # reduce the induced characters by the irreducibles found so far and do LLL
 # lattice reduction
 #
-	Reduce:=function(GR,RedTR,Opt)
+	Reduce:=function(GR,FusedClasses,RedTR,Opt)
 	local mat,temp,ind,I,i;
-		IndRed.redsparse(GR); #reduce new characters by all irreducibles
+		IndRed.redsparse(GR, FusedClasses); #reduce new characters by all irreducibles
 		IndRed.GramMatrixGR(GR); # update the gram matrix
 		if Opt.LLLOffset>0 then
 			GR.m:=Size(GR.Gram);
@@ -696,7 +694,7 @@ InstallValue( IndRed , rec(
 ##
 InstallGlobalFunction( InduceReduce,
 function(GR,Opt)
-local TR, RedTR, H, ccsizesH, temp, it;
+local TR, RedTR, Elementary;
 
 	TR:=IndRed.GroupTools(); # get group tools and reduce tools
 	RedTR:= rec();
@@ -707,8 +705,8 @@ local TR, RedTR, H, ccsizesH, temp, it;
 
 		Info(InfoCTUnger, 2, "Induce: from cyclic subgroups");
 
-		IndRed.InduceCyc(GR);
-		IndRed.Reduce(GR,RedTR,Opt);
+		IndRed.DoInduceCyc(GR);
+		IndRed.Reduce(GR,[1..GR.k],RedTR,Opt);
 		GR.InduceCyclic:=ListWithIdenticalEntries(GR.k,false);
 		GR.NumberOfCyclic:=0;
 	fi;
@@ -725,18 +723,18 @@ local TR, RedTR, H, ccsizesH, temp, it;
 		Opt.LLLOffset:=Opt.LLLOffset-1;
 		# Opt.LLLOffset postpones the first LLL lattice reduction
 	
-		IndRed.FindElementary(GR,Opt); # find elementary subgroup
+		Elementary := IndRed.FindElementary(GR,Opt); # find elementary subgroup
 	
-		IndRed.InitElementary(GR,TR,Opt); # determine information needed about elementary subgroup
+		IndRed.InitElementary(GR,Elementary,TR,Opt); # determine information needed about elementary subgroup
 	
 	
 		Info(InfoCTUnger, 1, "Induce/Restrict: Trying [|Z|, |P|, k(E)] = ",
 			[ GR.orders[GR.IndexCyc], 
-				GR.Elementary.n/GR.orders[GR.IndexCyc], GR.Elementary.k ]);
+				Elementary.n/GR.orders[GR.IndexCyc], Elementary.k ]);
 
-		IndRed.Induce(GR); # append induced characters to GR.B
+		IndRed.Induce(GR, Elementary); # append induced characters to GR.B
 	
-		IndRed.Reduce(GR,RedTR,Opt); # reduce GR.B by GR.Ir and do lattice reduction
+		IndRed.Reduce(GR, Elementary.FusedClasses, RedTR,Opt); # reduce GR.B by GR.Ir and do lattice reduction
 	od;
 
 	if Size(GR.Ir)>=GR.k then
@@ -745,7 +743,7 @@ local TR, RedTR, H, ccsizesH, temp, it;
 		Opt.Delta:=1; 
 		# if there are still characters missing, do on last LLL reduction with Opt.Delta:=1
 		Opt.LLLOffset:=0;
-		IndRed.Reduce(GR,RedTR,Opt);
+		IndRed.Reduce(GR,[],RedTR,Opt);
 		return GR.Ir;
 	fi;
 

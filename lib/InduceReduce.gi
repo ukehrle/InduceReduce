@@ -311,12 +311,12 @@ InstallValue( IndRed , rec(
 ##
 ## returns a record with different functions required for lattice reduction
 ##
-	ReduceTools:=function()
-	local RedTR,ip, ipSparse;
+	# ReduceTools:=function()
+	# local RedTR,ip, ipSparse;
 
-		RedTR:=rec();
-	
-		# inner product of class functions x and y
+	# 	RedTR:=rec();
+
+	# 	# inner product of class functions x and y
 		ip:= function(GR,x,y)
 			local res;
 			if IsBound(GR.inverseClasses) then
@@ -330,7 +330,7 @@ InstallValue( IndRed , rec(
 			else
 				return Sum([1..GR.k], i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
 			fi;
-		end;
+		end,
 	
 		# inner product of class functions x and y with few entries
 		# one of them has all non-zero entries in GR.Elementary.FusedClasses
@@ -349,34 +349,34 @@ InstallValue( IndRed , rec(
 				return Sum(GR.Elementary.FusedClasses,
 					i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
 			fi;
-		end;
+		end,
 	
 		# reduce new induced characters by the irreducibles found so far
-		RedTR.redsparse:=function(GR)
+		redsparse:=function(GR)
 		local mat,pos;
 			if GR.m+1>Size(GR.B) then return; fi;
 			pos:=[GR.m+1..Size(GR.B)];
-			mat:=List( pos , x->List(GR.Ir, y -> ipSparse(GR,GR.B[x],y) ) );
+			mat:=List( pos , x->List(GR.Ir, y -> IndRed.ipSparse(GR,GR.B[x],y) ) );
 			GR.B{pos}:=GR.B{pos}-mat*GR.Ir;
-		end;
+		end,
 	
 		# extend the gram matrix with the scalar products of the new characters
-		RedTR.GramMatrixGR:=function(GR)
+		GramMatrixGR:=function(GR)
 		local i,j,mat,b;
 			b:=Size(GR.B);
 			mat:=NullMat(b,b);
 			mat{[1..GR.m]}{[1..GR.m]}:=GR.Gram;
 			for i in [GR.m+1..b] do
 				for j in [1..i] do
-					mat[i][j]:=ip(GR,GR.B[i],GR.B[j]);
+					mat[i][j]:=IndRed.ip(GR,GR.B[i],GR.B[j]);
 					mat[j][i]:=mat[i][j];
 				od;
 			od;
 			GR.Gram:=mat;
-		end;
+		end,
 
-		return RedTR;
-	end ,
+	# 	return RedTR;
+	# end ,
 
 #############################################################################
 ##
@@ -592,8 +592,8 @@ InstallValue( IndRed , rec(
 #
 	Reduce:=function(GR,RedTR,Opt)
 	local mat,temp,ind,I,i;
-		RedTR.redsparse(GR); #reduce new characters by all irreducibles
-		RedTR.GramMatrixGR(GR); # update the gram matrix
+		IndRed.redsparse(GR); #reduce new characters by all irreducibles
+		IndRed.GramMatrixGR(GR); # update the gram matrix
 		if Opt.LLLOffset>0 then
 			GR.m:=Size(GR.Gram);
 		else
@@ -695,7 +695,8 @@ function(GR,Opt)
 local TR, RedTR, H, ccsizesH, temp, it;
 
 	TR:=IndRed.GroupTools(); # get group tools and reduce tools
-	RedTR:=IndRed.ReduceTools();
+	RedTR:= rec();
+
 
 	if Opt.DoCyclicFirst = true then # if option Opt.DoCyclicFirst is set,
 		# induce from all cyclic groups first and reduce

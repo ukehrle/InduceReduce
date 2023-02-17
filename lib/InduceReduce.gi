@@ -48,6 +48,10 @@
 ##
 ## a Float that specifies the parameter delta for the LLL reduction
 ##
+## UseFiniteFields
+##
+## a boolean variable that tells the program to use finite field arithmetic
+##
 CTUngerDefaultOptions := rec(
 	UseFlintLLL := true,
 	UsePcPresentation := true,
@@ -55,7 +59,8 @@ CTUngerDefaultOptions := rec(
 	DoCyclicFirst := false,
 	DoCyclicLast := false,
 	LLLOffset := 0,
-	Delta := 0.75
+	Delta := 0.75,
+	UseFiniteFields := false
 );
 
 #############################################################################
@@ -74,7 +79,7 @@ InstallValue( IndRed , rec(
 ## relevant data concerning the group G
 ##
 	Init:=function(G, Opt)
-	local GR,i, TR;
+	local GR,i, TR, z, prime;
 		TR:=IndRed.GroupTools(); # get group tools and reduce tools
 	
 		GR:=rec();
@@ -121,14 +126,88 @@ InstallValue( IndRed , rec(
 		GR.m:=0; # positions from which on characters are not reduced so far
 		GR.centralizers:=[];  # centralizers and powermaps computed so far
 		GR.powermaps:=[];
-		if Opt.PreComputePowMaps or Opt.DoCyclicFirst then
+		if Opt.PreComputePowMaps or Opt.DoCyclicFirst or Opt.UseFiniteFields then
 			for i in [1..GR.k] do
 				TR.PowMap(GR, i);
 			od;
 			GR.inverseClasses := List([1..GR.k], i -> GR.powermaps[i][GR.orders[i]]);
 		fi;
+		if Opt.UseFiniteFields then
+			prime:=2*GR.n+1;
+
+			while not IsPrimeInt(prime) do
+				prime:=prime+GR.e;
+			od;
+
+			Info(InfoCTUnger, 1 ,"Choosing prime ", prime);
+
+			GR.f := GF(prime);
+			GR.omegaInt := PowerModInt(PrimitiveRootMod(prime),(prime-1)/GR.e,prime);
+			GR.omega := GR.omegaInt * One(GR.f);
+			GR.Ir:=[ Zero([1..GR.k])+One(GR.f) ];
+			GR.ModularMap := DxGeneratePrimeCyclotomic(GR.e,GR.omega);
+			GR.prime := prime;
+			GR.normlimit := Int(prime/2);
+			GR.ninv := One(GR.f)/GR.n;
+		else
+			GR.omega := E(GR.e);
+			GR.ninv := 1/GR.n;
+		fi;
 		return GR;
 	end ,
+
+	#############################################################################
+	##
+	#F  DxLiftCharacter(<D>,<modChi>) . recalculate character in characteristic 0
+	##
+	LiftCharacter := function(GR, modular)
+		local modularchi,chi,zeta,degree,sum,M,l,s,n,j,polynom,chipolynom,
+			family,prime;
+
+		Info(InfoCTUnger, 2, "Lifting modular character ", modular, ".\n");
+
+
+		prime:=GR.prime;
+		modularchi:=List(modular, Int);
+		degree:=modularchi[GR.k];
+		chi:=[];
+		chi[GR.k] := degree;
+		for j in [1..(GR.k)-1] do
+			# FIXME
+			# we need to compute the polynomial only for prime classes. Powers are
+			# obtained by simply inserting powers in this polynomial
+			family := GR.powermaps[j]{[2..GR.orders[j]]};
+			l:=GR.orders[j];
+			zeta:=E(l);
+			polynom:=[degree,modularchi[j]];
+			for n in [2..l-1] do
+				s:=family[n];
+				polynom[n+1]:=modularchi[s];
+			od;
+			chipolynom:=[];
+			s:=0;
+			sum:=degree;
+			while sum>0 do
+				M:=DxModularValuePol(polynom,
+									PowerModInt(GR.omegaInt,-s*GR.e/l,prime),
+									#PowerModInt(D.z,-s*D.irrexp/l,prime),
+									prime)/l mod prime;
+				Add(chipolynom,M);
+				sum:=sum-M;
+				s:=s+1;
+			od;
+			for n in [1..l-1] do
+				s:=family[n];
+				if not IsBound(chi[s]) then
+					chi[s]:=ValuePol(chipolynom,zeta^n);
+				fi;
+			od;
+		od;
+
+		Info(InfoCTUnger, 2, "Lifted Character: ", chi, "\n");
+		return chi;
+	end,
+
 
 #############################################################################
 ##
@@ -197,11 +276,13 @@ InstallValue( IndRed , rec(
 	
 		## Compute character table of cyclic group as matrix
 		TR.Vandermonde:= function(GR)
-		local i, j, M;
+		local i, j, M, omega;
+			omega := GR.omega^(GR.e / GR.orders[GR.IndexCyc]);
+
 			M:=NullMat(GR.orders[GR.IndexCyc],GR.orders[GR.IndexCyc]);
 			for i in [0..GR.orders[GR.IndexCyc]-1] do
 				for j in [0..GR.orders[GR.IndexCyc]-1] do
-					M[i+1][j+1]:=E(GR.orders[GR.IndexCyc])^(i*j);
+					M[i+1][j+1] := omega^(i*j);
 				od;
 			od;
 			return M;
@@ -237,8 +318,15 @@ InstallValue( IndRed , rec(
 	
 		# inner product of class functions x and y
 		ip:= function(GR,x,y)
+			local res;
 			if IsBound(GR.inverseClasses) then
-				return Sum([1..GR.k], i->x[i]*y[GR.inverseClasses[i]]*GR.ccsizes[i])/GR.n;
+				res := Int(Sum([1..GR.k], i->x[i]*y[GR.inverseClasses[i]]*GR.ccsizes[i])*GR.ninv);
+				if IsBound(GR.normlimit) then
+					if res >= GR.normlimit then
+						res := res - GR.prime;
+					fi;
+				fi;
+				return res;
 			else
 				return Sum([1..GR.k], i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
 			fi;
@@ -247,9 +335,16 @@ InstallValue( IndRed , rec(
 		# inner product of class functions x and y with few entries
 		# one of them has all non-zero entries in GR.Elementary.FusedClasses
 		ipSparse:= function(GR,x,y)
+			local res;
 			if IsBound(GR.inverseClasses) then
-				return Sum(GR.Elementary.FusedClasses,
-					i->x[i]*y[GR.inverseClasses[i]]*GR.ccsizes[i])/GR.n;
+				res := Int(Sum(GR.Elementary.FusedClasses,
+					i->x[i]*y[GR.inverseClasses[i]]*GR.ccsizes[i])*GR.ninv);
+				if IsBound(GR.normlimit) then
+					if res >= GR.normlimit then
+						res := res - GR.prime;
+					fi;
+				fi;
+				return res;
 			else
 				return Sum(GR.Elementary.FusedClasses,
 					i->x[i]*ComplexConjugate(y[i])*GR.ccsizes[i])/GR.n;
@@ -391,6 +486,9 @@ InstallValue( IndRed , rec(
 				# compute the fusion of conjugacy classes of the elementary group
 				# to conjugacy classes of G
 			GR.Elementary.XZ:=TR.Vandermonde(GR); # character table of the cycic group
+			if Opt.UseFiniteFields then
+				GR.Elementary.XP := List(GR.Elementary.XP, chi -> List(chi, GR.ModularMap));
+			fi;
 			GR.Elementary.XE:=[]; # compute character table of the elementary group
 			for i in [1..GR.Elementary.kP] do
 				for j in [1..GR.Elementary.kZ] do
@@ -510,6 +608,11 @@ InstallValue( IndRed , rec(
 			ind:=[];
 			GR.m:=Size(GR.Gram);
 			for i in [1..GR.m] do
+				if Opt.UseFiniteFields then
+					if GR.Gram[i][i] > GR.normlimit then
+						Error("The chosen prime was too small. Tough luck.");
+					fi;
+				fi;
 				if GR.Gram[i][i]=1 then
 					Add(temp,i); # find positions of characters of norm 1
 				else
@@ -553,12 +656,22 @@ InstallValue( IndRed , rec(
 ##
 	tinI:=function(GR)
 	local irr,i,perm;
+		Print("Unit position: ", GR.ordersPos[1], "\n");
 
-		for i in [1..GR.k] do # adjust the signs
-			if GR.Ir[i][GR.ordersPos[1]]<0 then
-				GR.Ir[i]:=-GR.Ir[i];
-			fi;
-		od;
+		if IsBound(GR.prime) then
+			for i in [1..GR.k] do # adjust the signs
+				if Int(GR.Ir[i][GR.ordersPos[1]]) > GR.normlimit then
+					GR.Ir[i]:=-GR.Ir[i];
+				fi;
+			od;
+			GR.Ir := List(GR.Ir, chi -> IndRed.LiftCharacter(GR, chi));
+		else
+			for i in [1..GR.k] do # adjust the signs
+				if GR.Ir[i][GR.ordersPos[1]]<0 then
+					GR.Ir[i]:=-GR.Ir[i];
+				fi;
+			od;
+		fi;
 		irr:=[];
 		for i in [1..GR.k] do 
 			# permute irreducible characters back to the order of classes in GR.C
